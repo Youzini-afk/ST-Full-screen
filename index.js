@@ -13,7 +13,7 @@ const STORAGE_KEY = 'st-fullscreen-active';
 
 // ── Default settings ──────────────────────────────────────────
 const DEFAULT_SETTINGS = {
-    css_enabled: true,
+    css_enabled: false,
     native_enabled: true,
     persist_on_visibility: true,
     shortcut_enabled: true,
@@ -253,6 +253,6 @@ jQuery(async () => {
     await restoreState();
 
     // Notify
-    toastr.success('Full Screen Mode loaded', 'ST-Full-screen', { timeOut: 2000 });
+    toastr.success('全屏模式已加载', 'ST-Full-screen', { timeOut: 2000 });
     console.log('[ST-Full-screen] Extension initialized');
 });
