@@ -144,16 +144,12 @@ function injectMenuButton() {
 // Sync state when user exits native fullscreen via Esc or system back
 function onFullscreenChange() {
     if (!isNativeFullscreen() && isFullscreen) {
-        // User exited native fullscreen (Esc / back button)
-        // Keep CSS fullscreen or fully exit based on native_enabled
-        const settings = getSettings();
-        if (settings.native_enabled && !settings.css_enabled) {
-            // If only native was enabled, treat as full exit
-            isFullscreen = false;
-            localStorage.setItem(STORAGE_KEY, 'false');
-            updateMenuButtonState();
-        }
-        // If CSS is also enabled, CSS fullscreen stays — just native goes away
+        // User exited native fullscreen (Esc / back button / mobile back)
+        // Fully exit: remove CSS fullscreen class + reset state
+        isFullscreen = false;
+        document.body.classList.remove('st-fullscreen');
+        localStorage.setItem(STORAGE_KEY, 'false');
+        updateMenuButtonState();
     }
 }
 
@@ -168,6 +164,14 @@ function onVisibilityChange() {
 
 // Keyboard shortcuts
 function onKeyDown(e) {
+    // Escape → exit CSS fullscreen (when not in native fullscreen,
+    // because native fullscreen handles Esc on its own via fullscreenchange)
+    if (e.code === 'Escape' && isFullscreen && !isNativeFullscreen()) {
+        e.preventDefault();
+        disableFullscreen();
+        return;
+    }
+
     const settings = getSettings();
     if (!settings.shortcut_enabled) return;
 
