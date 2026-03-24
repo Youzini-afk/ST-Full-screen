@@ -17,12 +17,20 @@ const DEFAULT_SETTINGS = {
     native_enabled: true,
     persist_on_visibility: true,
     shortcut_enabled: true,
+    show_in_wand: true,
+    show_in_sendform: true,
 };
 
 // ── Settings helpers ──────────────────────────────────────────
 function getSettings() {
     if (!extension_settings.fullscreen) {
         extension_settings.fullscreen = { ...DEFAULT_SETTINGS };
+    }
+    // Migrate: add new keys if missing
+    for (const [key, val] of Object.entries(DEFAULT_SETTINGS)) {
+        if (extension_settings.fullscreen[key] === undefined) {
+            extension_settings.fullscreen[key] = val;
+        }
     }
     return extension_settings.fullscreen;
 }
@@ -70,18 +78,16 @@ async function enableFullscreen() {
     const settings = getSettings();
     isFullscreen = true;
 
-    // CSS layout fullscreen
     if (settings.css_enabled) {
         document.body.classList.add('st-fullscreen');
     }
 
-    // Native browser fullscreen
     if (settings.native_enabled) {
         await requestNativeFullscreen();
     }
 
     localStorage.setItem(STORAGE_KEY, 'true');
-    updateMenuButtonState();
+    updateAllButtonStates();
 }
 
 async function disableFullscreen() {
@@ -93,7 +99,7 @@ async function disableFullscreen() {
     }
 
     localStorage.setItem(STORAGE_KEY, 'false');
-    updateMenuButtonState();
+    updateAllButtonStates();
 }
 
 async function toggleFullscreen() {
@@ -104,27 +110,43 @@ async function toggleFullscreen() {
     }
 }
 
-// ── Menu button ───────────────────────────────────────────────
-function updateMenuButtonState() {
-    const btn = document.getElementById('st-fullscreen-toggle');
-    if (!btn) return;
-    const icon = btn.querySelector('.extensionsMenuExtensionButton');
-    if (icon) {
-        icon.classList.toggle('fa-expand', !isFullscreen);
-        icon.classList.toggle('fa-compress', isFullscreen);
+// ── Button state helpers ──────────────────────────────────────
+function updateAllButtonStates() {
+    // Wand menu button
+    const wandBtn = document.getElementById('st-fullscreen-toggle');
+    if (wandBtn) {
+        const icon = wandBtn.querySelector('.extensionsMenuExtensionButton');
+        if (icon) {
+            icon.classList.toggle('fa-expand', !isFullscreen);
+            icon.classList.toggle('fa-compress', isFullscreen);
+        }
+    }
+    // Standalone sendform button
+    const sendBtn = document.getElementById('st-fullscreen-sendform-btn');
+    if (sendBtn) {
+        sendBtn.classList.toggle('fa-expand', !isFullscreen);
+        sendBtn.classList.toggle('fa-compress', isFullscreen);
+        sendBtn.title = isFullscreen ? '退出全屏' : '全屏';
     }
 }
 
-function injectMenuButton() {
-    const menu = document.getElementById('extensionsMenu');
-    if (!menu) {
-        console.warn('[ST-Full-screen] #extensionsMenu not found, retrying...');
-        setTimeout(injectMenuButton, 1000);
+// ── Wand menu button ──────────────────────────────────────────
+function injectWandButton() {
+    const settings = getSettings();
+    const existing = document.getElementById('st-fullscreen-toggle');
+
+    if (!settings.show_in_wand) {
+        if (existing) existing.remove();
         return;
     }
 
-    // Avoid duplicate
-    if (document.getElementById('st-fullscreen-toggle')) return;
+    if (existing) return; // already injected
+
+    const menu = document.getElementById('extensionsMenu');
+    if (!menu) {
+        setTimeout(injectWandButton, 1000);
+        return;
+    }
 
     const container = document.createElement('div');
     container.id = 'st-fullscreen-toggle';
@@ -135,25 +157,47 @@ function injectMenuButton() {
     `;
     container.addEventListener('click', () => toggleFullscreen());
     menu.appendChild(container);
+}
 
-    updateMenuButtonState();
+// ── Standalone sendform button ────────────────────────────────
+function injectSendformButton() {
+    const settings = getSettings();
+    const existing = document.getElementById('st-fullscreen-sendform-btn');
+
+    if (!settings.show_in_sendform) {
+        if (existing) existing.remove();
+        return;
+    }
+
+    if (existing) return; // already injected
+
+    const leftSendForm = document.getElementById('leftSendForm');
+    if (!leftSendForm) {
+        setTimeout(injectSendformButton, 1000);
+        return;
+    }
+
+    const btn = document.createElement('div');
+    btn.id = 'st-fullscreen-sendform-btn';
+    btn.classList.add('fa-solid', 'fa-expand', 'interactable');
+    btn.title = '全屏';
+    btn.tabIndex = 0;
+    btn.addEventListener('click', () => toggleFullscreen());
+
+    // Insert after the last child (after extensionsMenuButton if present)
+    leftSendForm.appendChild(btn);
 }
 
 // ── Event listeners ───────────────────────────────────────────
-
-// Sync state when user exits native fullscreen via Esc or system back
 function onFullscreenChange() {
     if (!isNativeFullscreen() && isFullscreen) {
-        // User exited native fullscreen (Esc / back button / mobile back)
-        // Fully exit: remove CSS fullscreen class + reset state
         isFullscreen = false;
         document.body.classList.remove('st-fullscreen');
         localStorage.setItem(STORAGE_KEY, 'false');
-        updateMenuButtonState();
+        updateAllButtonStates();
     }
 }
 
-// Re-enter native fullscreen when coming back from background/PiP
 function onVisibilityChange() {
     if (document.hidden) return;
     const settings = getSettings();
@@ -162,10 +206,7 @@ function onVisibilityChange() {
     }
 }
 
-// Keyboard shortcuts
 function onKeyDown(e) {
-    // Escape → exit CSS fullscreen (when not in native fullscreen,
-    // because native fullscreen handles Esc on its own via fullscreenchange)
     if (e.code === 'Escape' && isFullscreen && !isNativeFullscreen()) {
         e.preventDefault();
         disableFullscreen();
@@ -175,7 +216,6 @@ function onKeyDown(e) {
     const settings = getSettings();
     if (!settings.shortcut_enabled) return;
 
-    // Ctrl+Shift+F → toggle
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') {
         e.preventDefault();
         toggleFullscreen();
@@ -192,18 +232,20 @@ async function loadSettingsPanel() {
 
     const settings = getSettings();
 
-    // Bind checkboxes
     const bindings = [
         { id: '#fullscreen_css_enabled', key: 'css_enabled' },
         { id: '#fullscreen_native_enabled', key: 'native_enabled' },
         { id: '#fullscreen_persist_on_visibility', key: 'persist_on_visibility' },
         { id: '#fullscreen_shortcut_enabled', key: 'shortcut_enabled' },
+        { id: '#fullscreen_show_in_wand', key: 'show_in_wand', onChange: injectWandButton },
+        { id: '#fullscreen_show_in_sendform', key: 'show_in_sendform', onChange: injectSendformButton },
     ];
 
-    for (const { id, key } of bindings) {
+    for (const { id, key, onChange } of bindings) {
         $(id).prop('checked', settings[key]);
         $(id).on('input', function () {
             saveSetting(key, $(this).prop('checked'));
+            if (onChange) onChange();
         });
     }
 }
@@ -219,29 +261,25 @@ async function restoreState() {
             document.body.classList.add('st-fullscreen');
         }
 
-        // Native fullscreen requires user gesture — try anyway, may work
-        // on Chromium from visibilitychange but not guaranteed on cold load
         if (settings.native_enabled) {
-            // Delay slightly to let the page settle
             setTimeout(() => {
                 requestNativeFullscreen();
             }, 500);
         }
 
-        updateMenuButtonState();
+        updateAllButtonStates();
     }
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────
 jQuery(async () => {
-    // Ensure default settings exist
     getSettings();
 
-    // Load settings panel into extensions page
     await loadSettingsPanel();
 
-    // Inject menu button
-    injectMenuButton();
+    // Inject buttons based on settings
+    injectWandButton();
+    injectSendformButton();
 
     // Attach event listeners
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -249,10 +287,8 @@ jQuery(async () => {
     document.addEventListener('visibilitychange', onVisibilityChange);
     document.addEventListener('keydown', onKeyDown);
 
-    // Restore saved state
     await restoreState();
 
-    // Notify
     toastr.success('全屏模式已加载', 'ST-Full-screen', { timeOut: 2000 });
     console.log('[ST-Full-screen] Extension initialized');
 });
