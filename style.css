@@ -23,7 +23,7 @@ body.st-fullscreen #sheld {
     left: 0 !important;
     right: unset !important;
     bottom: unset !important;
-    z-index: 1000;
+    z-index: unset;
     border-radius: 0 !important;
     resize: none !important;
 }
