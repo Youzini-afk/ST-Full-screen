@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
     show_in_wand: false,
     show_in_sendform: true,
     show_in_topbar: false,
+    pwa_immersive: false,
 };
 
 // ── Settings helpers ──────────────────────────────────────────
@@ -79,11 +80,13 @@ async function enableFullscreen() {
     const settings = getSettings();
     isFullscreen = true;
 
-    if (settings.css_enabled) {
+    // CSS layout fullscreen: always apply when css_enabled OR pwa_immersive
+    if (settings.css_enabled || settings.pwa_immersive) {
         document.body.classList.add('st-fullscreen');
     }
 
-    if (settings.native_enabled) {
+    // Native fullscreen: skip if pwa_immersive is on
+    if (settings.native_enabled && !settings.pwa_immersive) {
         await requestNativeFullscreen();
     }
 
@@ -296,6 +299,7 @@ async function loadSettingsPanel() {
         { id: '#fullscreen_show_in_wand', key: 'show_in_wand', onChange: injectWandButton },
         { id: '#fullscreen_show_in_sendform', key: 'show_in_sendform', onChange: injectSendformButton },
         { id: '#fullscreen_show_in_topbar', key: 'show_in_topbar', onChange: injectTopBarButton },
+        { id: '#fullscreen_pwa_immersive', key: 'pwa_immersive' },
     ];
 
     for (const { id, key, onChange } of bindings) {
@@ -314,11 +318,11 @@ async function restoreState() {
         const settings = getSettings();
         isFullscreen = true;
 
-        if (settings.css_enabled) {
+        if (settings.css_enabled || settings.pwa_immersive) {
             document.body.classList.add('st-fullscreen');
         }
 
-        if (settings.native_enabled) {
+        if (settings.native_enabled && !settings.pwa_immersive) {
             setTimeout(() => {
                 requestNativeFullscreen();
             }, 500);
