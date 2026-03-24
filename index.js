@@ -238,6 +238,15 @@ function injectTopBarButton() {
 // ── Event listeners ───────────────────────────────────────────
 function onFullscreenChange() {
     if (!isNativeFullscreen() && isFullscreen) {
+        const settings = getSettings();
+
+        // If page is hidden (tab switch / minimize) and persist is enabled,
+        // keep isFullscreen = true so onVisibilityChange can re-request later
+        if (document.hidden && settings.persist_on_visibility) {
+            return;
+        }
+
+        // User intentionally exited (Esc / back button while page visible)
         isFullscreen = false;
         document.body.classList.remove('st-fullscreen');
         localStorage.setItem(STORAGE_KEY, 'false');
