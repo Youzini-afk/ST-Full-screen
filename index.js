@@ -17,8 +17,9 @@ const DEFAULT_SETTINGS = {
     native_enabled: true,
     persist_on_visibility: true,
     shortcut_enabled: true,
-    show_in_wand: true,
+    show_in_wand: false,
     show_in_sendform: true,
+    show_in_topbar: false,
 };
 
 // ── Settings helpers ──────────────────────────────────────────
@@ -128,6 +129,16 @@ function updateAllButtonStates() {
         sendBtn.classList.toggle('fa-compress', isFullscreen);
         sendBtn.title = isFullscreen ? '退出全屏' : '全屏';
     }
+    // Top bar button
+    const topBtn = document.getElementById('st-fullscreen-topbar-btn');
+    if (topBtn) {
+        const topIcon = topBtn.querySelector('.drawer-icon');
+        if (topIcon) {
+            topIcon.classList.toggle('fa-expand', !isFullscreen);
+            topIcon.classList.toggle('fa-compress', isFullscreen);
+        }
+        topBtn.title = isFullscreen ? '退出全屏' : '全屏';
+    }
 }
 
 // ── Wand menu button ──────────────────────────────────────────
@@ -188,6 +199,42 @@ function injectSendformButton() {
     leftSendForm.appendChild(btn);
 }
 
+// ── Top bar button ────────────────────────────────────────────
+function injectTopBarButton() {
+    const settings = getSettings();
+    const existing = document.getElementById('st-fullscreen-topbar-btn');
+
+    if (!settings.show_in_topbar) {
+        if (existing) existing.remove();
+        return;
+    }
+
+    if (existing) return;
+
+    const bgButton = document.getElementById('backgrounds-button');
+    if (!bgButton) {
+        setTimeout(injectTopBarButton, 1000);
+        return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.id = 'st-fullscreen-topbar-btn';
+    wrapper.classList.add('drawer');
+    wrapper.title = '全屏';
+    wrapper.innerHTML = `
+        <div class="drawer-toggle drawer-header">
+            <div class="drawer-icon fa-solid fa-expand fa-fw closedIcon"></div>
+        </div>
+    `;
+    wrapper.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen();
+    });
+
+    bgButton.parentElement.insertBefore(wrapper, bgButton);
+    updateAllButtonStates();
+}
+
 // ── Event listeners ───────────────────────────────────────────
 function onFullscreenChange() {
     if (!isNativeFullscreen() && isFullscreen) {
@@ -239,6 +286,7 @@ async function loadSettingsPanel() {
         { id: '#fullscreen_shortcut_enabled', key: 'shortcut_enabled' },
         { id: '#fullscreen_show_in_wand', key: 'show_in_wand', onChange: injectWandButton },
         { id: '#fullscreen_show_in_sendform', key: 'show_in_sendform', onChange: injectSendformButton },
+        { id: '#fullscreen_show_in_topbar', key: 'show_in_topbar', onChange: injectTopBarButton },
     ];
 
     for (const { id, key, onChange } of bindings) {
@@ -280,6 +328,7 @@ jQuery(async () => {
     // Inject buttons based on settings
     injectWandButton();
     injectSendformButton();
+    injectTopBarButton();
 
     // Attach event listeners
     document.addEventListener('fullscreenchange', onFullscreenChange);
